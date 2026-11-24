@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trendpulse-web
+  namespace: trendpulse
+  labels:
+    app: trendpulse-web
+    tier: frontend
+spec:
+  # Task 2: 2 Replicas configured
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trendpulse-web
+  template:
+    metadata:
+      labels:
+        app: trendpulse-web
+        tier: frontend
+    spec:
+      containers:
+      - name: trendpulse-web
+        image: trendpulse-app:optimized
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: CLUSTER_ENV
+          value: "k8s-private-cluster"
+        - name: DEPLOYMENT_TIER
+          value: "primary"
+        # Task 2 & Task 5: Right-sized Resource Requests and Limits
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        # Task 2: Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+        # Liveness probe for self-healing process restarts
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3

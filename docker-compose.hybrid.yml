@@ -1,0 +1,70 @@
+services:
+  # -------------------------------------------------------------
+  # Environment A: Private Cluster (On-Premises)
+  # -------------------------------------------------------------
+  redis-private:
+    image: redis:7.2-alpine
+    container_name: redis-private
+    networks:
+      - hybrid-net
+
+  web-private-cluster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trendpulse-app:optimized
+    container_name: app-private-cluster
+    environment:
+      - REDIS_HOST=redis-private
+      - REDIS_PORT=6379
+      - CLUSTER_ENV=private-onprem-dc1
+      - DEPLOYMENT_TIER=primary-active
+    networks:
+      - hybrid-net
+    depends_on:
+      - redis-private
+
+  # -------------------------------------------------------------
+  # Environment B: Public Cloud (Simulated AWS US-East-1)
+  # -------------------------------------------------------------
+  redis-public:
+    image: redis:7.2-alpine
+    container_name: redis-public
+    networks:
+      - hybrid-net
+
+  web-public-cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trendpulse-app:optimized
+    container_name: app-public-cloud
+    environment:
+      - REDIS_HOST=redis-public
+      - REDIS_PORT=6379
+      - CLUSTER_ENV=public-cloud-aws-us-east-1
+      - DEPLOYMENT_TIER=secondary-standby
+    networks:
+      - hybrid-net
+    depends_on:
+      - redis-public
+
+  # -------------------------------------------------------------
+  # Hybrid Global Ingress / Failover Gateway
+  # -------------------------------------------------------------
+  hybrid-gateway:
+    image: nginx:alpine
+    container_name: hybrid-global-router
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-failover.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - hybrid-net
+    depends_on:
+      - web-private-cluster
+      - web-public-cloud
+
+networks:
+  hybrid-net:
+    driver: bridge

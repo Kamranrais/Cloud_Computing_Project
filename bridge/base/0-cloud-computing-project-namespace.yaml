@@ -1,0 +1,8 @@
+#! 0-cloud-computing-project-namespace.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: cloud-computing-project
+    labels:
+        com.docker.compose.project: cloud_computing_project

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trendpulse
+  labels:
+    app.kubernetes.io/name: trendpulse
+    environment: production

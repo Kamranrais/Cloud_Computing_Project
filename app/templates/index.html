@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrendPulse | Twitter Trending Tagline Cloud Analytics</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <i class="fa-brands fa-x-twitter text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-sky-400 via-indigo-300 to-white bg-clip-text text-transparent">
+                        TrendPulse Cloud
+                    </h1>
+                    <p class="text-xs text-slate-400">Twitter Trending Tagline & Hashtag Analytics</p>
+                </div>
+            </div>
+
+            <!-- Cluster & Pod Telemetry Badges -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <div class="flex items-center space-x-2 bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-1.5 shadow-sm">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-slate-400">Pod:</span>
+                    <span class="font-mono text-sky-300 font-semibold" id="telemetry-pod">{{ pod_name }}</span>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-1.5 shadow-sm">
+                    <i class="fa-solid fa-cloud text-indigo-400"></i>
+                    <span class="text-slate-400">Cluster:</span>
+                    <span class="font-semibold text-indigo-300" id="telemetry-cluster">{{ cluster_env }}</span>
+                </div>
+                <div class="flex items-center space-x-2 bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-1.5 shadow-sm">
+                    <i class="fa-solid fa-database text-rose-400"></i>
+                    <span class="text-slate-400">Storage:</span>
+                    <span class="font-semibold {% if redis_connected %}text-emerald-400{% else %}text-amber-400{% endif %}" id="telemetry-storage">
+                        {% if redis_connected %}Redis (Active){% else %}In-Memory Fallback{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+        <!-- Metrics Row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 shadow-sm hover:border-slate-600 transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Tweets Analyzed</span>
+                    <div class="p-2 bg-sky-500/10 rounded-lg text-sky-400"><i class="fa-solid fa-chart-line"></i></div>
+                </div>
+                <div class="mt-2 text-3xl font-extrabold text-white" id="stat-total-tweets">{{ total_tweets }}</div>
+                <div class="mt-1 text-xs text-emerald-400 flex items-center">
+                    <i class="fa-solid fa-arrow-trend-up mr-1"></i> Live streaming feed active
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 shadow-sm hover:border-slate-600 transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Top Tagline</span>
+                    <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400"><i class="fa-solid fa-fire"></i></div>
+                </div>
+                <div class="mt-2 text-2xl font-extrabold text-indigo-300 truncate" id="stat-top-tag">
+                    {% if trends %}{{ trends[0].tag }}{% else %}#Kubernetes{% endif %}
+                </div>
+                <div class="mt-1 text-xs text-slate-400" id="stat-top-posts">
+                    {% if trends %}{{ trends[0].post_count }} posts analyzed{% else %}0 posts{% endif %}
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 shadow-sm hover:border-slate-600 transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Avg Sentiment</span>
+                    <div class="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><i class="fa-solid fa-face-smile"></i></div>
+                </div>
+                <div class="mt-2 text-3xl font-extrabold text-emerald-400" id="stat-sentiment">84.2%</div>
+                <div class="mt-1 text-xs text-slate-400">Positive public reaction</div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 shadow-sm hover:border-slate-600 transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Cluster State</span>
+                    <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400"><i class="fa-solid fa-network-wired"></i></div>
+                </div>
+                <div class="mt-2 text-2xl font-extrabold text-white" id="stat-replicas">2 Replicas</div>
+                <div class="mt-1 text-xs text-sky-400">HPA Enabled (Min: 2, Max: 6)</div>
+            </div>
+        </div>
+
+        <!-- Charts and Leaderboard Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Trending Hashtags Volume Chart (2 Cols) -->
+            <div class="lg:col-span-2 bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center">
+                            <i class="fa-solid fa-chart-column mr-2 text-sky-400"></i>
+                            Trending Taglines Post Volume
+                        </h2>
+                        <p class="text-xs text-slate-400">Real-time aggregate count of posts per trending tagline</p>
+                    </div>
+                    <button onclick="refreshData()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs rounded-lg transition flex items-center text-slate-200">
+                        <i class="fa-solid fa-rotate mr-1.5"></i> Refresh
+                    </button>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="barChartTrends"></canvas>
+                </div>
+            </div>
+
+            <!-- Sentiment Breakdown Doughnut Chart (1 Col) -->
+            <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center">
+                        <i class="fa-solid fa-pie-chart mr-2 text-indigo-400"></i>
+                        Overall Sentiment Distribution
+                    </h2>
+                    <p class="text-xs text-slate-400 mb-4">Tagline sentiment analysis across all posts</p>
+                </div>
+                <div class="relative h-56 w-full flex items-center justify-center">
+                    <canvas id="doughnutChartSentiment"></canvas>
+                </div>
+                <div class="flex justify-around text-center text-xs mt-3 pt-3 border-t border-slate-700/60">
+                    <div><span class="block font-bold text-emerald-400" id="pct-pos">70%</span><span class="text-slate-400">Positive</span></div>
+                    <div><span class="block font-bold text-slate-300" id="pct-neu">20%</span><span class="text-slate-400">Neutral</span></div>
+                    <div><span class="block font-bold text-rose-400" id="pct-neg">10%</span><span class="text-slate-400">Negative</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Table & Live Actions -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Leaderboard Table (2 Cols) -->
+            <div class="lg:col-span-2 bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-bold text-white flex items-center">
+                        <i class="fa-solid fa-hashtag mr-2 text-sky-400"></i>
+                        Top Trending Taglines Leaderboard
+                    </h2>
+                    <span class="text-xs text-slate-400">Sorted by Post Frequency</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="text-xs uppercase bg-slate-900/60 text-slate-400 border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Tagline / Hashtag</th>
+                                <th class="py-3 px-4">Post Count</th>
+                                <th class="py-3 px-4">Est. Reach</th>
+                                <th class="py-3 px-4">Sentiment</th>
+                                <th class="py-3 px-4">Velocity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body" class="divide-y divide-slate-700/50">
+                            {% for t in trends %}
+                            <tr class="hover:bg-slate-700/30 transition">
+                                <td class="py-3 px-4 font-semibold text-sky-300">{{ t.tag }}</td>
+                                <td class="py-3 px-4 font-mono font-bold">{{ t.post_count }}</td>
+                                <td class="py-3 px-4 text-slate-400">{{ t.reach_estimate }}</td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400">
+                                        {{ t.sentiment.positive_pct }}% Pos
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-xs text-slate-400">~{{ t.velocity_per_min }} / min</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Ingestion and Stress Simulation Controls (1 Col) -->
+            <div class="space-y-4">
+                <!-- Ingestion Box -->
+                <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+                    <h2 class="text-base font-bold text-white mb-2 flex items-center">
+                        <i class="fa-solid fa-paper-plane mr-2 text-indigo-400"></i>
+                        Ingest New Tweet
+                    </h2>
+                    <form id="tweet-form" onsubmit="submitCustomTweet(event)" class="space-y-3">
+                        <div>
+                            <input type="text" id="tweet-author" placeholder="Author handle (e.g. cloud_engineer)" class="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500">
+                        </div>
+                        <div>
+                            <textarea id="tweet-text" rows="2" placeholder="Tweet text with #hashtags (e.g. Scaling on #Kubernetes with zero downtime!)" required class="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500"></textarea>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 font-semibold text-xs rounded-lg transition shadow-md shadow-sky-500/20 text-white">
+                            Publish & Ingest Tweet
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Simulation & Cloud Stress Testing Box -->
+                <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+                    <h2 class="text-base font-bold text-white mb-2 flex items-center">
+                        <i class="fa-solid fa-gauge-high mr-2 text-rose-400"></i>
+                        Cloud Operations & Scaling Test
+                    </h2>
+                    <p class="text-xs text-slate-400 mb-3">Trigger workloads to test Kubernetes HPA scaling and live tweet stream ingestion.</p>
+                    <div class="space-y-2">
+                        <button onclick="simulateTweetsBurst(15)" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-xs rounded-lg font-medium text-slate-200 transition flex items-center justify-center">
+                            <i class="fa-solid fa-bolt mr-2 text-amber-400"></i> Simulate 15 Live Tweets Burst
+                        </button>
+                        <button onclick="triggerCpuStress()" class="w-full py-2 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/50 text-xs rounded-lg font-medium text-rose-200 transition flex items-center justify-center">
+                            <i class="fa-solid fa-fire-burner mr-2 text-rose-400"></i> Generate CPU Load (HPA Trigger)
+                        </button>
+                    </div>
+                    <div id="stress-feedback" class="mt-2 text-xs text-slate-400 hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Ingested Stream -->
+        <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+            <h2 class="text-base font-bold text-white mb-3 flex items-center">
+                <i class="fa-solid fa-rss mr-2 text-sky-400"></i>
+                Real-Time Analyzed Tweet Stream
+            </h2>
+            <div id="tweet-stream-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {% for tw in recent_stream %}
+                <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3 text-xs flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span class="font-bold text-sky-400">@{{ tw.author }}</span>
+                            <span>{{ tw.time_str }}</span>
+                        </div>
+                        <p class="text-slate-200 mb-2">{{ tw.text }}</p>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                        <div class="space-x-1">
+                            {% for tag in tw.hashtags %}
+                            <span class="inline-block bg-sky-500/10 text-sky-400 px-1.5 py-0.5 rounded text-[10px]">#{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold {% if tw.sentiment == 'positive' %}bg-emerald-500/20 text-emerald-400{% elif tw.sentiment == 'negative' %}bg-rose-500/20 text-rose-400{% else %}bg-slate-500/20 text-slate-300{% endif %}">
+                            {{ tw.sentiment }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
+        <p>Twitter TrendPulse &bull; Cloud Computing Project &bull; Kubernetes Microservices Architecture &bull; 2026</p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

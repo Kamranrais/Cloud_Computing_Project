@@ -1,0 +1,52 @@
+#! web-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: web
+    namespace: cloud-computing-project
+    labels:
+        com.docker.compose.project: cloud_computing_project
+        com.docker.compose.service: web
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: cloud_computing_project
+            com.docker.compose.service: web
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: cloud_computing_project
+                com.docker.compose.service: web
+                com.docker.compose.network.default: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: web
+                  image: trendpulse-app:local
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: CLUSTER_ENV
+                      value: "docker-compose-local"
+                    - name: DEPLOYMENT_TIER
+                      value: "local-standalone"
+                    - name: REDIS_HOST
+                      value: "redis"
+                    - name: REDIS_PORT
+                      value: "6379"
+                  securityContext:
+                    capabilities:
+                        drop: [ALL]
+                  livenessProbe:
+                    exec:
+                        command: ['python -c import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8000/healthz''', timeout=2)]
+                    periodSeconds: 15
+                    initialDelaySeconds: 10
+                    timeoutSeconds: 3
+                    failureThreshold: 3
+                  ports:
+                    - name: web-8000
+                      containerPort: 8000

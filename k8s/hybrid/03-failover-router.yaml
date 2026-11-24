@@ -1,0 +1,71 @@
+# ==============================================================================
+# GLOBAL FAILOVER ROUTER / INGRESS CONTROLLER
+# Routes to Private Cluster first, automatically fails over to Public Cloud
+# ==============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-failover-config
+  namespace: trendpulse
+data:
+  nginx.conf: |
+    events { worker_connections 1024; }
+    http {
+      upstream hybrid_upstream {
+        server service-private-cluster.trendpulse.svc.cluster.local:80 max_fails=2 fail_timeout=5s;
+        server service-public-cluster.trendpulse.svc.cluster.local:80 backup;
+      }
+      server {
+        listen 80;
+        location / {
+          proxy_pass http://hybrid_upstream;
+          proxy_connect_timeout 2s;
+          proxy_read_timeout 3s;
+          proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+          proxy_set_header Host $host;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hybrid-failover-router
+  namespace: trendpulse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hybrid-router
+  template:
+    metadata:
+      labels:
+        app: hybrid-router
+    spec:
+      containers:
+      - name: nginx-router
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: config-volume
+        configMap:
+          name: nginx-failover-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hybrid-global-ingress
+  namespace: trendpulse
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30090
+  selector:
+    app: hybrid-router
